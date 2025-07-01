@@ -160,7 +160,7 @@ gcloud sql users create appuser --instance=url-shortener-db --password=your-secu
 ### Step 2.2: Update Flask for Cloud SQL
 Install additional dependencies:
 ```bash
-pip install psycopg2-binary google-cloud-sql-connector
+pip install psycopg2-binary cloud-sql-python-connector
 ```
 
 Update `app.py` configuration:

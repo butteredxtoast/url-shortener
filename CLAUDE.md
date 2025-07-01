@@ -49,3 +49,5 @@ This project is designed to be a URL shortener service. The typical architecture
 - Database storage for URL mappings
 - Web API endpoints for creating and resolving short URLs
 - Optional analytics and rate limiting
+- Production URL: https://url-shortener-api-409887059259.us-central1.run.app
+- When deploying, set BASE_URL environment variable

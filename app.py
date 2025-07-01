@@ -4,9 +4,48 @@ import string
 import random
 import re
 from urllib.parse import urlparse
+import os
+from google.cloud.sql.connector import Connector
+import sqlalchemy
+
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///urls.db'
+
+def init_connection_pool():
+    if os.getenv('ENVIRONMENT') == 'production':
+        connector = Connector()
+        def getconn():
+            conn = connector.connect(
+                os.getenv('CLOUD_SQL_CONNECTION_NAME'),
+                'pg8000',
+                user=os.getenv('DB_USER'),
+                password=os.getenv('DB_PASS'),
+                db=os.getenv('DB_NAME')
+            )
+            return conn
+
+        engine = sqlalchemy.create_engine(
+            "postgresql+pg8000://",
+            creator=getconn,
+        )
+        return engine
+    else:
+        return 'sqlite:///urls.db'
+
+if os.getenv('ENVIRONMENT') == 'production':
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_size': 5,
+        'pool_timeout': 30,
+        'pool_recycle': -1,
+        'max_overflow': 2,
+        'pool_pre_ping': True,
+        'pool_reset_on_return': None,
+    }
+    app.config['SQLALCHEMY_DATABASE_URI'] = init_connection_pool()
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///urls.db'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -50,7 +89,7 @@ def shorten_url():
     existing = URL.query.filter_by(original_url=original_url).first()
     if existing:
         return jsonify({
-            'short_url': f'http://localhost:5000/{existing.short_code}',
+            'short_url': f'{BASE_URL}/{existing.short_code}',
             'short_code': existing.short_code
         })
 
@@ -65,7 +104,7 @@ def shorten_url():
     db.session.commit()
 
     return jsonify({
-        'short_url': f'http://localhost:5000/{short_code}',
+        'short_url': f'{BASE_URL}/{short_code}',
         'short_code': short_code
     })
 
