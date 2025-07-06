@@ -15,9 +15,19 @@ from datetime import datetime
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:5001')
 
 app = Flask(__name__)
+
+def get_allowed_origins():
+    if os.getenv('ENVIRONMENT') == 'production':
+        return [
+            "https://url-shortener-464622.web.app",
+            "http://localhost:5173"
+        ]
+    else:
+        return ["http://localhost:5173"]
+
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:5173"],
+        "origins": get_allowed_origins(),
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
     }
