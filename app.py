@@ -8,6 +8,9 @@ from urllib.parse import urlparse
 import os
 from google.cloud.sql.connector import Connector
 import sqlalchemy
+from google.cloud import bigquery
+import json
+from datetime import datetime
 
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:5001')
 
@@ -57,6 +60,9 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+# Initialize BigQuery client
+bq_client = bigquery.Client() if os.getenv('ENVIRONMENT') == 'production' else None
+
 
 class URL(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -80,6 +86,27 @@ def is_valid_url(url):
         r'(?::\d+)?'  # optional port
         r'(?:/?|[/?]\S+)$', re.IGNORECASE)
     return pattern.match(url) is not None
+
+
+def log_click_event(short_code, user_agent, ip_address):
+    if not bq_client:
+        return
+    
+    table_id = f"{os.getenv('GOOGLE_CLOUD_PROJECT')}.analytics.url_clicks"
+    
+    rows_to_insert = [{
+        "short_code": short_code,
+        "timestamp": datetime.utcnow().isoformat(),
+        "user_agent": user_agent,
+        "ip_address": ip_address
+    }]
+    
+    try:
+        errors = bq_client.insert_rows_json(table_id, rows_to_insert)
+        if errors:
+            print(f"BigQuery insert errors: {errors}")
+    except Exception as e:
+        print(f"BigQuery error: {e}")
 
 
 @app.route('/api/shorten', methods=['POST'])
@@ -126,6 +153,13 @@ def redirect_url(short_code):
     # Increment click counter
     url.clicks += 1
     db.session.commit()
+
+    # Log to BigQuery
+    log_click_event(
+        short_code=short_code,
+        user_agent=request.headers.get('User-Agent', ''),
+        ip_address=request.remote_addr
+    )
 
     return redirect(url.original_url)
 
