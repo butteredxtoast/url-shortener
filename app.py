@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, redirect
-from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 import string
 import random
@@ -16,22 +15,20 @@ BASE_URL = os.getenv('BASE_URL', 'http://localhost:5001')
 
 app = Flask(__name__)
 
-def get_allowed_origins():
-    if os.getenv('ENVIRONMENT') == 'production':
-        return [
-            "https://url-shortener-464622.web.app",
-            "http://localhost:5173"
-        ]
-    else:
-        return ["http://localhost:5173"]
-
-CORS(app, resources={
-    r"/api/*": {
-        "origins": get_allowed_origins(),
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
-    }
-})
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    allowed_origins = [
+        'https://url-shortener-464622.web.app',
+        'http://localhost:5173'
+    ]
+    
+    if origin in allowed_origins:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    
+    return response
 
 def init_connection_pool():
     if os.getenv('ENVIRONMENT') == 'production':
@@ -118,6 +115,10 @@ def log_click_event(short_code, user_agent, ip_address):
     except Exception as e:
         print(f"BigQuery error: {e}")
 
+
+@app.route('/api/shorten', methods=['OPTIONS'])
+def options_shorten():
+    return '', 200
 
 @app.route('/api/shorten', methods=['POST'])
 def shorten_url():
