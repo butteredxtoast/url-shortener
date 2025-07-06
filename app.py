@@ -13,6 +13,7 @@ BASE_URL = os.getenv('BASE_URL', 'http://localhost:5001')
 
 app = Flask(__name__)
 
+
 @app.after_request
 def after_request(response):
     origin = request.headers.get('Origin')
@@ -20,17 +21,19 @@ def after_request(response):
         'https://url-shortener-464622.web.app',
         'http://localhost:5173'
     ]
-    
+
     if origin in allowed_origins:
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-    
+
     return response
+
 
 def init_connection_pool():
     if os.getenv('ENVIRONMENT') == 'production':
         connector = Connector()
+
         def getconn():
             conn = connector.connect(
                 os.getenv('CLOUD_SQL_CONNECTION_NAME'),
@@ -48,6 +51,7 @@ def init_connection_pool():
         return engine
     else:
         return 'sqlite:///urls.db'
+
 
 if os.getenv('ENVIRONMENT') == 'production':
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
@@ -77,6 +81,11 @@ class URL(db.Model):
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
 
+# Create tables
+with app.app_context():
+    db.create_all()
+
+
 def generate_short_code(length=6):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
@@ -96,16 +105,16 @@ def is_valid_url(url):
 def log_click_event(short_code, user_agent, ip_address):
     if not bq_client:
         return
-    
+
     table_id = f"{os.getenv('GOOGLE_CLOUD_PROJECT')}.analytics.url_clicks"
-    
+
     rows_to_insert = [{
         "short_code": short_code,
         "timestamp": datetime.now(datetime.UTC).isoformat(),
         "user_agent": user_agent,
         "ip_address": ip_address
     }]
-    
+
     try:
         errors = bq_client.insert_rows_json(table_id, rows_to_insert)
         if errors:
@@ -117,6 +126,7 @@ def log_click_event(short_code, user_agent, ip_address):
 @app.route('/api/shorten', methods=['OPTIONS'])
 def options_shorten():
     return '', 200
+
 
 @app.route('/api/shorten', methods=['POST'])
 def shorten_url():
@@ -188,6 +198,4 @@ def get_stats(short_code):
 
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True, port=5001)
