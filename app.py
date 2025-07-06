@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, redirect
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 import string
 import random
@@ -8,9 +9,16 @@ import os
 from google.cloud.sql.connector import Connector
 import sqlalchemy
 
-BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:5001')
 
 app = Flask(__name__)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:5173"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
 def init_connection_pool():
     if os.getenv('ENVIRONMENT') == 'production':
@@ -139,4 +147,4 @@ def get_stats(short_code):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    app.run(debug=True, port=5001)
