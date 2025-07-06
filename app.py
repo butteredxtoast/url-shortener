@@ -3,12 +3,10 @@ from flask_sqlalchemy import SQLAlchemy
 import string
 import random
 import re
-from urllib.parse import urlparse
 import os
 from google.cloud.sql.connector import Connector
 import sqlalchemy
 from google.cloud import bigquery
-import json
 from datetime import datetime
 
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:5001')
@@ -103,7 +101,7 @@ def log_click_event(short_code, user_agent, ip_address):
     
     rows_to_insert = [{
         "short_code": short_code,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(datetime.UTC).isoformat(),
         "user_agent": user_agent,
         "ip_address": ip_address
     }]
