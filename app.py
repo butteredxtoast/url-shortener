@@ -38,27 +38,21 @@ def after_request(response):
     return response
 
 
-def init_connection_pool():
-    if os.getenv('ENVIRONMENT') == 'production':
-        connector = Connector()
+def get_connection_creator():
+    """Returns a connection creator function for production database"""
+    connector = Connector()
 
-        def getconn():
-            conn = connector.connect(
-                os.getenv('CLOUD_SQL_CONNECTION_NAME'),
-                'pg8000',
-                user=os.getenv('DB_USER'),
-                password=os.getenv('DB_PASS'),
-                db=os.getenv('DB_NAME')
-            )
-            return conn
-
-        engine = sqlalchemy.create_engine(
-            "postgresql+pg8000://",
-            creator=getconn,
+    def getconn():
+        conn = connector.connect(
+            os.getenv('CLOUD_SQL_CONNECTION_NAME'),
+            'pg8000',
+            user=os.getenv('DB_USER'),
+            password=os.getenv('DB_PASS'),
+            db=os.getenv('DB_NAME')
         )
-        return engine
-    else:
-        return 'sqlite:///urls.db'
+        return conn
+
+    return getconn
 
 
 if os.getenv('ENVIRONMENT') == 'production':
@@ -69,8 +63,9 @@ if os.getenv('ENVIRONMENT') == 'production':
         'max_overflow': 2,
         'pool_pre_ping': True,
         'pool_reset_on_return': None,
+        'creator': get_connection_creator()
     }
-    app.config['SQLALCHEMY_DATABASE_URI'] = init_connection_pool()
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+pg8000://'
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///urls.db'
 
@@ -89,9 +84,17 @@ class URL(db.Model):
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
 
-# Create tables
+# Create tables - with error handling for production startup
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+        print("✅ Database tables created successfully")
+    except Exception as e:
+        print(f"⚠️ Database table creation failed: {e}")
+        if os.getenv('ENVIRONMENT') == 'production':
+            print("🔄 App will continue running - tables can be created via /api/init-db endpoint")
+        else:
+            raise  # Re-raise in development
 
 
 def generate_short_code(length=6):
@@ -202,6 +205,39 @@ def get_stats(short_code):
         'original_url': url.original_url,
         'clicks': url.clicks,
         'created_at': url.created_at.isoformat()
+    })
+
+
+@app.route('/api/init-db', methods=['POST'])
+def init_database():
+    """Manual database initialization endpoint for production"""
+    try:
+        db.create_all()
+        return jsonify({
+            'status': 'success',
+            'message': 'Database tables created successfully'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Database initialization failed: {str(e)}'
+        }), 500
+
+
+@app.route('/api/health')
+def health_check():
+    """Health check endpoint"""
+    try:
+        # Test database connection
+        db.session.execute(db.text('SELECT 1'))
+        db_status = 'connected'
+    except Exception as e:
+        db_status = f'error: {str(e)}'
+    
+    return jsonify({
+        'status': 'ok',
+        'environment': os.getenv('ENVIRONMENT', 'development'),
+        'database': db_status
     })
 
 

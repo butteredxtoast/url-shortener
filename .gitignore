@@ -8,3 +8,5 @@ __pycache__/
 *.log
 .pytest_cache/
 .idea
+.claude
+CLAUDE.md
