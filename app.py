@@ -9,7 +9,15 @@ import sqlalchemy
 from google.cloud import bigquery
 from datetime import datetime
 
-BASE_URL = os.getenv('BASE_URL', 'http://localhost:5001')
+def get_base_url():
+    # Check if we have forwarded headers (production with reverse proxy)
+    if request.headers.get('X-Forwarded-Proto') and request.headers.get('Host'):
+        proto = request.headers.get('X-Forwarded-Proto')
+        host = request.headers.get('Host')
+        return f"{proto}://{host}"
+
+    # Fallback to request.url_root for development
+    return request.url_root.rstrip('/')
 
 app = Flask(__name__)
 
@@ -143,7 +151,7 @@ def shorten_url():
     existing = URL.query.filter_by(original_url=original_url).first()
     if existing:
         return jsonify({
-            'short_url': f'{BASE_URL}/{existing.short_code}',
+            'short_url': f'{get_base_url()}/{existing.short_code}',
             'short_code': existing.short_code
         })
 
@@ -158,7 +166,7 @@ def shorten_url():
     db.session.commit()
 
     return jsonify({
-        'short_url': f'{BASE_URL}/{short_code}',
+        'short_url': f'{get_base_url()}/{short_code}',
         'short_code': short_code
     })
 
